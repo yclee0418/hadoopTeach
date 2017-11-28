@@ -1,0 +1,103 @@
+Hadoop－Hive－Mysql－HBase－R 案例實作
+    目的：藉由整合性案例讓學員對於如何應用 Hadoop Ecosystem 成員之搭配有所了解
+    時機：於學員具備以下工具知識後實施
+        Hadoop、HDFS、Hive、Sqoop、HBase（optional）、Eclipse（optional）、R（提供程式碼可視覺化呈現即可）
+    原生案例參考：
+        http://dblab.xmu.edu.cn/post/7499/
+    案例內容：
+        分析購物網站使用者行為log，並予以視覺化呈現
+    實作步驟：
+        Log原始資料取得：
+            網址：
+                small_user: https://drive.google.com/file/d/15jgPoXazcACdEbw7CvyZoLSdYbwOcbqn/view?usp=sharing
+                all_size_data: https://drive.google.com/file/d/1ol-kz0HGX93vmlnd0Zrw3nrYAUuh9nBH/view?usp=sharing
+            欄位內容：
+                user_id（用戶id）
+                item_id(商品id)
+                behaviour_type（1-瀏覽，2-收藏，3-加購物車，4-購買）
+                user_geohash(用戶地理位置Hash值，有些記錄中沒有這個字段值，在資料前處理階段會用Linux shell做數據預處理時把這個欄位全部刪除)
+                item_category（商品分類）
+                time（記錄產生時間）
+        Log資料前處理：本步驟中透過 Linux Shell script 將 user_geohash 欄位移除，並加入區域別（亂數賦予），作為後續的分析依據之一
+            script參考下載： https://github.com/yclee0418/hadoopTeach/blob/master/lab/lab1/preprocess_users.sh
+        建立 HIVE 外部表
+            上傳 HDFS
+            建立 HIVE DB (dblab1)
+            建立 external table：
+                CREATE EXTERNAL TABLE dblab1.user_table
+                (id INT,uid STRING,item_id STRING,behavior_type INT,item_category STRING,visit_date DATE,county STRING) 
+                COMMENT 'user data of dblab1!' 
+                ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' STORED AS TEXTFILE LOCATION '/user/hduser/lab1';
+	    Test complicated query: 取出第2天購買商品前3名
+            select * from 
+            (select count(uid) as cnt,item_id, day(visit_date) from user_table where behavior_type='4' 
+            group by day(visit_date), item_id having day(visit_date) = 2) a 
+            order by cnt desc limit 3;
+	    Create temp table for analysis by county：建立暫存表顯示各縣市的總瀏覽狀況
+		    create table scan_table (county STRING,scan INT) COMMENT 'This is the scan by county' ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
+		    insert overwrite table scan_table select county,count(behavior_type) from user_table where behavior_type='1' group by county;
+        Create temp table for sqoop subquery: 建立子表供後續存入mysql用（EX：只取出有收收藏行為者作分析）
+            CREATE TABLE dblab1.user_action
+                    (id INT,uid STRING,item_id STRING,behavior_type INT,item_category STRING,visit_date DATE,county STRING) 
+                    COMMENT 'subset of user_table' ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
+            INSERT OVERWRITE TABLE dblab1.user_action select * from dblab1.user_table 
+            where uid in (select uid from user_table where behavior_type=2);
+            重點在於warehouse是否產生於HDFS
+
+        MySQL:在mysql中建立對應資料表以儲存hive
+            sudo vi /etc/mysql/mysql.conf.d/mysqld.cnf
+            在[mysqld]下添加一行character_set_server=utf8(below lc-messages-dir) => 使 sqoop 可以寫入中文
+            CREATE TABLE user_action (id varchar(50),uid varchar(50),item_id varchar(50),behavior_type varchar(10),item_category varchar(50), visit_date DATE,county varchar(20)) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+        
+        sqoop:用Sqoop將資料導入
+            sqoop export --connect jdbc:mysql://localhost:3306/dblab1 --username hive --password hive --table user_action --export-dir '/user/hive/warehouse/dblab1.db/user_action' --fields-terminated-by '\t';
+            也可以用 sqoop 的 --query 來達成（可思考有何好壞）
+	
+        R: 
+            安裝套件：
+                sudo apt-get install libmariadb-client-lgpl-dev
+                install.packages('RMySQL')
+            連結 mysql :
+                library(RMySQL)
+                conn <- dbConnect(MySQL(),dbname='dblab1',username='hive',password='hive',host="127.0.0.1",port=3306)
+                user_action <- dbGetQuery(conn,'select * from user_action')
+
+            histogram:
+                library(ggplot2)
+                ggplot(user_action,aes(as.numeric(behavior_type)))+geom_histogram()
+            
+            sort top 10 items:		
+                temp <- subset(user_action,as.numeric(behavior_type)==4)
+                count <- sort(table(temp$item_category),decreasing = T) 
+                print(count[1:10])
+            
+                Freq<-count[1:10] #point chart for top 10 items:
+                result <- as.data.frame(Freq)
+                result$Var1 <- rownames(result)
+                ggplot(result,aes(Var1,Freq,col=factor(Var1)))+geom_point()
+                ggplot(result,aes(x=Var1, y=Freq, group=1))+geom_line()
+            
+            compare behavior_type among months:
+                month <- substr(user_action$visit_date,6,7) # visit_date变量中截取月份
+                user_action <- cbind(user_action,month) # user_action增加一列月份数据
+                ggplot(user_action,aes(as.numeric(behavior_type),col=factor(month)))+geom_histogram()+facet_grid(.~month)
+            
+            Map:地圖視覺化顯示
+                install.packages("ggmap")
+                install.packages("mapproj")
+                library(ggmap)
+                library(mapproj)
+                rel <- as.data.frame(table(temp$county))
+                county <- rel$Var1
+                x = c()
+                for(n in county){
+                x[length(x)+1] = nrow(subset(temp,(county==n)))
+                }
+                mapData <- data.frame(county=rel$Var1,
+                count=x, stringsAsFactors=F) # 设置地图信息
+                    lat<-read.csv("County_lon_lat.txt") #read lon and lat of countys
+                mergeData <- merge(mapData, lat, by="county", all.x=T)
+                mergeData$degree <- 15-mergeData$count/20 #set color -> the bigger the deeper
+                
+                map <- get_map(location = 'Taiwan', zoom = 7)
+                    ggmap(map) + geom_point(aes(x = lon, y = lat, size = count, color=degree), data = mergeData)
