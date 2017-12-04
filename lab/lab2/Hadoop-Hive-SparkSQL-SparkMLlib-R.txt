@@ -1,0 +1,31 @@
+Hadoop－Hive－SparkSQL－SparkMLlib－R 案例實作
+    目的：藉由整合性案例讓學員對於如何應用 Hadoop Ecosystem 成員之搭配有所了解
+    時機：於學員具備以下工具知識後實施
+        Hadoop、HDFS、Hive、Sqoop、SparkSQL、SparkMLlib、R（提供程式碼可視覺化呈現即可）
+    原生案例參考：
+        http://dblab.xmu.edu.cn/post/8116/
+    案例內容：
+        分析購物網站(淘宝)購物行為log，並予以視覺化呈現
+    實作步驟：
+        Log原始資料取得：
+            網址：
+                
+            欄位內容：
+                
+        Log資料前處理：本步驟中透過 Linux Shell script 將 user_log 減量(50筆取一筆，共一百萬筆資料)，以便在單機執行
+            script參考下載： https://github.com/yclee0418/hadoopTeach/blob/master/lab/lab2/reduce_size.sh
+        
+
+
+        SparkSQL Cli 模式運作
+            可透過 $SPARK_HOME/bin/spark-sql 來執行 Hive SQL，不需由spark-shell操作
+                => 可以透shell script來執行 SparkSQL
+            需先完成SparkSQL 與 Hive 連結設定(Spark 2.2 + Hive 2.3.2)
+            準備 Hive SQL 檔:
+                Select 範例: https://github.com/yclee0418/hadoopTeach/blob/master/lab/lab2/item_mr.sql
+                Insert 範例: https://github.com/yclee0418/hadoopTeach/blob/master/lab/lab2/item_mr_ins.sql
+            執行指令:
+                ./bin/spark-sql --master spark://hadoop1:7077 --jars mysql-connector.jar --d item_mr.sql > sel_res.txt
+                    => 將 HSQL Select 的結果寫入文字檔
+                ./bin/spark-sql --master spark://hadoop1:7077 --jars mysql-connector.jar --d item_mr_ins.sql
+                    => 直接在sql檔裡新增hive database及table，並將結果Load進hive table中
