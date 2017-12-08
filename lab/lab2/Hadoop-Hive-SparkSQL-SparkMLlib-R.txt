@@ -15,8 +15,30 @@ Hadoop－Hive－SparkSQL－SparkMLlib－R 案例實作
         Log資料前處理：本步驟中透過 Linux Shell script 將 user_log 減量(50筆取一筆，共一百萬筆資料)，以便在單機執行
             script參考下載： https://github.com/yclee0418/hadoopTeach/blob/master/lab/lab2/reduce_size.sh
         
-
-
+        SparkSQL 建立Hive表
+            以 sed -i '1d' user_log.csv 拿掉第一行
+            CREATE EXTERNAL TABLE dblab2.user_log
+            (seq INT, user_id INT,item_id INT,cat_id INT,merchant_id INT,
+            brand_id INT,month STRING,day STRING,action INT,age_range INT, gender INT,province STRING) 
+            COMMENT 'user log for taubau' ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+            STORED AS TEXTFILE LOCATION '/user/hduser/lab2/userlog';
+        SparkSQL 分析:
+            select count(distinct user_id) from user_log;
+            查询不重复的数据有多少条(为了排除客户刷单情况):
+                select count(*) from 
+                (select user_id,item_id,cat_id,merchant_id,brand_id,month,day,action from user_log 
+                group by user_id,item_id,cat_id,merchant_id,brand_id,month,day,action 
+                having count(*)=1)a;
+            查詢客戶購買率(購買數/點擊數):
+                select ((select count(distinct user_id) from user_log where action='2') /(select  count(distinct user_id) from user_log))a;
+            查詢客戶購買率(分男女):
+                (select (select count(distinct user_id) from user_log where action='2') /(select  count(distinct user_id) from user_log)) union all
+                (select (select count(distinct user_id) from user_log where action='2' and gender=0) /(select  count(distinct user_id) from user_log where gender=0)) union all
+                (select (select count(distinct user_id) from user_log where action='2' and gender=1) /(select  count(distinct user_id) from user_log where gender=1)) ;
+            查詢死忠客戶:
+                select user_id from user_log where action='2' group by user_id having count(action='2')>2;
+            查詢死忠客戶(對那個商品死忠):
+                select user_id, brand_id from user_log where action='2' group by user_id, brand_id having count(action='2')>2;    
         SparkSQL Cli 模式運作
             可透過 $SPARK_HOME/bin/spark-sql 來執行 Hive SQL，不需由spark-shell操作
                 => 可以透shell script來執行 SparkSQL
@@ -25,7 +47,20 @@ Hadoop－Hive－SparkSQL－SparkMLlib－R 案例實作
                 Select 範例: https://github.com/yclee0418/hadoopTeach/blob/master/lab/lab2/item_mr.sql
                 Insert 範例: https://github.com/yclee0418/hadoopTeach/blob/master/lab/lab2/item_mr_ins.sql
             執行指令:
-                ./bin/spark-sql --master spark://hadoop1:7077 --jars mysql-connector.jar --d item_mr.sql > sel_res.txt
+                ./bin/spark-sql --master spark://hadoop1:7077 --jars mysql-connector.jar --f item_mr.sql > sel_res.txt
                     => 將 HSQL Select 的結果寫入文字檔
-                ./bin/spark-sql --master spark://hadoop1:7077 --jars mysql-connector.jar --d item_mr_ins.sql
+                ./bin/spark-sql --master spark://hadoop1:7077 --jars mysql-connector.jar --f item_mr_ins.sql
                     => 直接在sql檔裡新增hive database及table，並將結果Load進hive table中
+        取出死忠客戶出來分析:
+            HiveSQL查詢:
+                select * from user_log where user_id in (select user_id from user_log where action='2' group by user_id having count(action='2')>2);
+            用  SparkSQL Cli 模式讀取SQL檔，在dblab2中建立user_log_good Hive資料表
+            MySQL:在mysql中建立對應資料表以儲存hive
+                show variables like "char%";
+                sudo vi /etc/mysql/mysql.conf.d/mysqld.cnf
+                在[mysqld]下添加一行character_set_server=utf8(below lc-messages-dir) => 使 sqoop 可以寫入中文
+                CREATE TABLE `dblab2`.`user_log` 
+                (`seq` varchar(8), `user_id` varchar(20),`item_id` varchar(20),`cat_id` varchar(20),`merchant_id` varchar(20),`brand_id` varchar(20), `month` varchar(6),`day` varchar(6),`action` varchar(6),`age_range` varchar(6),`gender` varchar(6),`province` varchar(10)) 
+                ENGINE=InnoDB DEFAULT CHARSET=utf8;
+            sqoop 匯入mysql:
+                ./bin/sqoop export --connect jdbc:mysql://localhost:3306/dblab2 --username hive --password hive --table user_log --export-dir '/user/hive/warehouse/dblab2.db/user_log_good/' --fields-terminated-by ',';
