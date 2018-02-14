@@ -1,5 +1,6 @@
 #### Spark and Cassandra Integration Sample
-* Reference: [https://ithelp.ithome.com.tw/articles/10188914](https://ithelp.ithome.com.tw/articles/10188914)
+* Preparation: [https://ithelp.ithome.com.tw/articles/10188825](https://ithelp.ithome.com.tw/articles/10188825)
+* Code Reference: [https://ithelp.ithome.com.tw/articles/10188914](https://ithelp.ithome.com.tw/articles/10188914)
 * All project need to use sbteclipse to load related libraries: [https://github.com/yclee0418/sparkTeach/tree/master/sbt](https://github.com/yclee0418/sparkTeach/tree/master/sbt)
 * Day29_Cassandra.scala : 
   * how to connect to cassandra with sparkContext
