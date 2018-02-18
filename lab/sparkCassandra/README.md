@@ -1,5 +1,6 @@
 #### Spark and Cassandra Integration Sample
 * installation: [https://www.jianshu.com/p/7d50ff9d1e10](https://www.jianshu.com/p/7d50ff9d1e10)
+  * when creating another node by coping folder from existing node, remember to delete data folder of new node and recreate it.
 * Preparation: [https://ithelp.ithome.com.tw/articles/10188825](https://ithelp.ithome.com.tw/articles/10188825)
 * Code Reference: [https://ithelp.ithome.com.tw/articles/10188914](https://ithelp.ithome.com.tw/articles/10188914)
 * All project need to use sbteclipse to load related libraries: [https://github.com/yclee0418/sparkTeach/tree/master/sbt](https://github.com/yclee0418/sparkTeach/tree/master/sbt)
