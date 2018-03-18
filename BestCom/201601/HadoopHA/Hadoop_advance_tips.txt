@@ -1,0 +1,110 @@
+Hadoop HA
+    zookeeper安裝
+        下載 zookeeper.tar.gz －＞ unzip -> zookeeper home/conf/zoo.cfg(mv from zoo_sample.cfg if not exist)
+        zoo.cfg:
+            tickTime -> 心跳偵測時間（微秒）
+            initLimit －> cluster 內的所有機器同步時應在多少心跳內有回應
+            syncLimit －> cluster 內的所有機器溝通時應在多少心跳內有回應
+            dataDir －> zookeeper 本機工作目錄，建議放在安裝目錄的data目錄內
+            server.1 -> 指定 cluster 內server name及通訊port ex：hadoop1：2888:3888
+        create myid in dataDir: echo 1 > myid
+        scp zookeeper安裝目錄到其它機器: 
+            scp -r zookeeper hduser@hadoop2:/home/hduser/Downloads
+            sudo mv zookeeper /usr/local/zookeeper
+        start zookeeper: ./bin/zkServer.sh start
+        看狀態：bin/zkServer.sh status
+        check process: jps -> QuorumPeerMain    
+        check port: 
+            netstat -nltp | grep 2181 --> 看 port 和 process
+            netstat -n | grep 2888 --> 看 port 有沒有 listen
+        Test:
+            用 bin 下的 zkCli.sh 連入 zookeeper cluster
+            command:
+                help 
+                ls / -> 看目前zookeeper下的文件節點
+                create /classNum 100 -> 建立文件節點
+                get /classNum -> 查看文件節點內容
+                set /classNum 150 -> 設定文件節點內容
+    
+    Hadoop instatll：
+        ［不好，會有問題］ssh： 在第一台產生key以後再 scp 到另一台 scp -r ~/.ssh hduser@hadoop2:/home/hduser
+        ssh: 在每台重作ssh-keygen -t rsa (記得rm掉原有的~/.ssh); 再到每一台作 ssh-copy-id hduser@hadoop2 
+
+    Hadoop HA: 
+        Hadoop 的原始設計： 數據保存有保障，但服務可用性無保障
+        是Active－Standby的 HA 架構
+            只有一個 NN 能 是Active
+            當 Active NN fail 時，standby NN 要能無縫接軌 
+                －＞ edits_log 和 FSImage 檔案要能所有 NN 同步一致（只要edits_log能一致，FSImage就能一致）-> 將 edits_log 交由第三方管理
+                －＞ 用journalnode管理，並依附zookeeper來實現
+            防止 brain split -> fencing : ssh kill, run script if ssh error
+        最少 VM 數： 3
+           (NN1 ZKFC1 ZK1 JN1) (NN2 ZKFC2 ZK2 JN2 DN1) (ZK3 JN3 DN2) -> 先只架一台，之後演練架另一台DN後動態加入
+        正常配置： 7 台
+            1: NN ZKFC  2：  NN ZKFC 3,4： ResourceManager    5,6,7: ZK JN DN NodeManager(DN和NM放一起可實現在地運算)
+
+        先架好hadoop multi-node，再改成HA模式： 
+            改hdfs-site.xml
+            改core-site.xml
+                journalnode dataDir 設定無效，journalnode資料仍在 /tmp/hadoop/dfs/journalnode下，原因不明
+            改yarn-site.xml
+        
+        scp hadoop安裝目錄至其它台電腦
+            scp -r hadoop hduser@hadoop2:/home/hduser/Downloads
+            suod mv hadoop /usr/local/hadoop
+        
+        第一次啟動：
+            start zookeeper(安裝ZK者分別啟動)：$ZOOKEEPER_HOME/bin/zkServer.sh start => jps 要看到QuorumPeerMain
+            start journal node(安裝JN者分別啟動，第一次手動啟動讓namenode format能成功，之後改由start-dfs來啟動): 
+                hdfs --daemon start journalnode => jps 要看到 JournalNode
+            format namenode(在其中一台NN執行)：hdfs namenode -format(多執行幾次可發現會format所有NN)
+            啟動HDFS：start-dfs.sh(會警告JN已啟動，但仍可正常啟動；此時只會啟動已format的那台NN)
+            format standby namenode(在另一台NN執行，將Active NN的metadata抄寫過來)：hdfs namenode -bootstrapStandby
+            啟動standby namenode：hdfs --daemon start namenode
+            format ZKFC(在其中一台NN執行): hdfs zkfc -formatZK 
+                => 用zkCli.sh 可 ls /hadoop-ha 會看到有註冊 mycluster 及 /yarn-leader-election 有註冊 cluster1
+        之後啟動：
+            start-dfs.sh
+                hdfs --daemon start zkfc => 獨立啟動ZKFC
+                hdfs --daemon start namenode
+                hdfs --daemon start datanode
+            start-yarn.sh
+                另一台 ResourceManager 不會帶起來，用 ./sbin/yarn-daemon.sh start resourcemanager
+        驗證：
+            jps
+                ZKFC (都有)
+                QuorumPeerMain (都有)
+                DataNode (hadoop1,2)
+                Namenode (hadoop1,2)
+                ResourceManager (hadoop1,2)                    
+                NodeManager (hadoop1,2)
+                JournalNode (都有)
+
+            由 http://hadoop1:9870 和 http://hadoop2:9870 看兩台NN的狀況
+            由 http://hadoop1:8088 看 yarn 狀況
+                yarn rmadmin -getServiceState rm1 可看何者為active
+
+            sudo kill -9 <pid of NodeManager> 看另一NN是否順利接手
+            sudo kill -9 <pid of ResourceManager> 看另一RM是否順利接手
+
+        MapReduce 測試：
+            hadoop jar $HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-examples.jar pi 3 3
+            (hadoop1和2 記憶體不夠無法跑)
+        
+        加入另一 DN 測試：
+            建立一台主機，將所有 hadoop 設定 copy 至該主機
+            確認 hadoop_data/hdfs/namenode/ 及 hadoop_data/hdfs/datanode/ 下沒有 current 目錄（有就刪掉）
+            啟動 DN： ./sbin/hadoop-daemon.sh start datanode
+            由 50070 網頁查看可看到 DN 數增加
+            修改兩台NN 的 slaves 將 DN 加入以便利用 start-dfs 啟動    
+
+其它設定值：
+    hdfs-site.xml
+        改 DN 和 NN 間 heartbeat 時間(確認heatbeat是否timeout)： heartbeat.recheck.interval(default: 5分鐘)
+        改 NN check DN 心跳次數：dfs.heartbeat.interval(default: 3 Sec)
+        DN 掛掉時，NN 要超過 2*heartbeat.recheck.interval ＋ 10*dfs.heartbeat.interval 才會認為 DN 已失效
+    
+        block數的檢查間隔：dfs.blockreport.intervalMsec(default: 1小時)
+        當 DN 失效，另一 DN 加入後會複制原 DN 的 Block，原 DN 恢復後即產生多餘Block，要由block數檢查來去除
+
+
