@@ -31,6 +31,7 @@ Hadoop HA
         ssh: 在每台重作ssh-keygen -t rsa (記得rm掉原有的~/.ssh); 再到每一台作 ssh-copy-id hduser@hadoop2 
 
     Hadoop HA: 
+        Ref：http://hadoop.apache.org/docs/r3.0.0/hadoop-project-dist/hadoop-hdfs/HDFSHighAvailabilityWithQJM.html
         Hadoop 的原始設計： 數據保存有保障，但服務可用性無保障
         是Active－Standby的 HA 架構
             只有一個 NN 能 是Active
@@ -46,7 +47,7 @@ Hadoop HA
         先架好hadoop multi-node，再改成HA模式： 
             改hdfs-site.xml
             改core-site.xml
-                journalnode dataDir 設定無效，journalnode資料仍在 /tmp/hadoop/dfs/journalnode下，原因不明
+                journalnode dataDir 設定無效，journalnode資料仍在 /tmp/hadoop/dfs/journalnode下，原因待察
             改yarn-site.xml
         
         scp hadoop安裝目錄至其它台電腦
@@ -63,6 +64,10 @@ Hadoop HA
             啟動standby namenode：hdfs --daemon start namenode
             format ZKFC(在其中一台NN執行): hdfs zkfc -formatZK 
                 => 用zkCli.sh 可 ls /hadoop-ha 會看到有註冊 mycluster 及 /yarn-leader-election 有註冊 cluster1
+        備註：
+            若要由MultiNode升級為HA且要保留原本HDFS資料，參閱 Ref 的 Deployment details 章節
+            如果是由MultiNode安裝改為HA安裝，且在namenode format或standby namenode format時出問題(例如狀態不一致)：
+                可刪除hadoop_data/hdfs和journalnode dataDir
         之後啟動：
             start-dfs.sh
                 hdfs --daemon start zkfc => 獨立啟動ZKFC
