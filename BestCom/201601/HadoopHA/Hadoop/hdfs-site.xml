@@ -40,11 +40,11 @@
 </property>
 <property>
   <name>dfs.namenode.http-address.mycluster.nn1</name>
-  <value>hadoop1:50070</value>
+  <value>hadoop1:9870</value>
 </property>
 <property>
   <name>dfs.namenode.http-address.mycluster.nn2</name>
-  <value>hadoop2:50070</value>
+  <value>hadoop2:9870</value>
 </property>
 <property>
   <name>dfs.namenode.shared.edits.dir</name>
