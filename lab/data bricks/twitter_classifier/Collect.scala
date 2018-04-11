@@ -19,7 +19,7 @@ object Collect {
 
   def main(args: Array[String]) : Unit = {
     val outputDirectory = "data/output" //output json dir
-    val numTweetsToCollect = 100 //max number to collect
+    val numTweetsToCollect = 50000 //max number to collect
     val intervalSecs = 10 //every 10 sec collect data from twitter
     val partitionsEachInterval = 1 //number of rdd partition
     val outputDir = new File(outputDirectory.toString)
