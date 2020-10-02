@@ -19,7 +19,7 @@
 # the Hive installation (so that users do not have to set environment variables
 # or set command line parameters to get correct behavior).
 #
-# The hive service being invoked (CLI/HWI etc.) is available via the environment
+# The hive service being invoked (CLI etc.) is available via the environment
 # variable SERVICE
 
 
@@ -41,14 +41,14 @@
 #
 # Larger heap size may be required when running queries over large number of files or partitions. 
 # By default hive shell scripts use a heap size of 256 (MB).  Larger heap size would also be 
-# appropriate for hive server (hwi etc).
+# appropriate for hive server.
 
 
 # Set HADOOP_HOME to point to a specific hadoop install directory
- HADOOP_HOME=/usr/local/hadoop
+HADOOP_HOME=${HADOOP_HOME}
 
 # Hive Configuration Directory can be controlled by:
- export HIVE_CONF_DIR=/usr/local/hive/conf
+export HIVE_CONF_DIR=${HIVE_CONF_DIR}
 
-# Folder containing extra ibraries required for hive compilation/execution can be controlled by:
+# Folder containing extra libraries required for hive compilation/execution can be controlled by:
 # export HIVE_AUX_JARS_PATH=
