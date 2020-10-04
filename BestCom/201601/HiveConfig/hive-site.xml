@@ -5089,7 +5089,7 @@
   </property>
   <property>
     <name>hive.execution.engine</name>
-    <value>mr</value>
+    <value>spark</value>
     <description>
       Expects one of [mr, tez, spark].
       Chooses execution engine. Options are: mr (Map reduce, default), tez, spark. While MR
@@ -6605,7 +6605,7 @@
   </property>
   <property>
     <name>hive.spark.client.server.connect.timeout</name>
-    <value>90000ms</value>
+    <value>300000ms</value>
     <description>
       Expects a time value with unit (d/day, h/hour, m/min, s/sec, ms/msec, us/usec, ns/nsec), which is msec if not specified.
       Timeout for handshake between Hive client and remote Spark driver.  Checked by both processes.
@@ -6916,4 +6916,41 @@
       See HIVE-15121 for details.
     </description>
   </property>
+  <property>
+	  <name>hive.enable.spark.execution.engine</name>
+	  <value>true</value>
+	</property>
+	
+	<property>
+	  <name>spark.home</name>
+	  <value>/usr/local/spark</value>
+	</property>
+	<property>
+	  <name>spark.master</name>
+	  <value>yarn</value>
+	</property>
+	<property>
+	  <name>spark.enentLog.enabled</name>
+	  <value>true</value>
+	</property>
+	<property>
+	  <name>spark.enentLog.dir</name>
+	  <value>hdfs://hadoop-master:9000/spark-log</value>
+	</property>
+	<property>
+	  <name>spark.serializer</name>
+	  <value>org.apache.spark.serializer.KryoSerializer</value>
+	</property>
+	<property>
+	  <name>spark.executor.memeory</name>
+	  <value>1g</value>
+	</property>
+	<property>
+	  <name>spark.driver.memeory</name>
+	  <value>2g</value>
+	</property>
+	<property>
+	  <name>spark.executor.extraJavaOptions</name>
+	  <value>-XX:+PrintGCDetails -Dkey=value -Dnumbers="one two three"</value>
+	</property>
 </configuration>
